@@ -4,13 +4,20 @@ file="main.cpp"
 output=$(echo "$file" | sed "s/\..*//")
 ARGS=" $* "
 
-# g++ -g -O2 -o "$output" -std=gnu++23 -static -lrt -Wl,--whole-archive -lpthread -Wl,--no-whole-archive "$file"
-g++ -o "$output" "$file" -std=gnu++20 -fsanitize=address -Wall
+FLAGS=""
 
+if [[ "$ARGS" == *" --debug "* ]]; then
+  FLAGS="-DDEBUG"
+fi
+
+g++ -o "$output" "$file" -std=gnu++20 -fsanitize=address -Wall $FLAGS
+i=1
 for in_file in tests/*.in; do
     if [[ "$ARGS" == *" --debug "* ]]; then
+        echo "===== Test Case $i ====="
         ./$output < "$in_file"
-        exit
+        continue
+
     fi
     
     name=$(echo "$in_file" | sed "s/\..*//")
@@ -18,11 +25,16 @@ for in_file in tests/*.in; do
     tmp=$(mktemp)
     ./$output < "$in_file" > "$tmp"
     
-    if diff --report-identical-files --side-by-side "$tmp" "$out_file" > /dev/null; then
+    if diff  -Z --report-identical-files --side-by-side "$tmp" "$out_file" > /dev/null; then
         echo "OK"
     else
-        echo "FAIL"
-        diff --report-identical-files --side-by-side "$tmp" "$out_file" 
+        echo "FAIL Test $i"
+        diff -Z --report-identical-files --side-by-side "$tmp" "$out_file" 
+        rm "$tmp"
+        exit
     fi
     rm "$tmp"
+
+    ((i++))
 done
+
